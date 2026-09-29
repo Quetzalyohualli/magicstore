@@ -32,4 +32,18 @@ La página revisa el inventario cada vez que alguien la abre. Google tarda unos 
 - No cambies los códigos ni los títulos de las columnas (codigo, pieza, categoria, estado, precio).
 - La primera fila de la hoja siempre debe ser la de títulos: no agregues notas encima.
 - No despubliques la hoja (Archivo → Compartir → Publicar en la web). Si se despublica, la página muestra todo como disponible.
-- Una pieza nueva necesita sus fotos y textos dentro de la página; agregar una fila a la hoja no basta.
+- Precios dobles: escribe `80/145` para "$80 c/u, 2 piezas por $145".
+
+## Agregar una pieza nueva
+
+1. Sube la foto de la pieza a la carpeta `img` del repositorio (por ejemplo `cetro-amatista.jpg`). De preferencia vertical, sin textos encima.
+2. En la hoja agrega una fila nueva con:
+   - **codigo**: un código que no exista (por ejemplo `CE-01`).
+   - **pieza**: tipo y nombre separados por " · " (por ejemplo `Cetro · Cetro de amatista`).
+   - **categoria**: el nombre exacto de una categoría (Pulseras, Anillos y dijes, Cuarzos y cristales, Esferas y corazones o Rodados). Si escribes otra, se crea una categoría nueva.
+   - **estado** y **precio**, como las demás.
+   - **descripcion** (columna F, opcional): una o dos frases sobre la pieza.
+   - **imagen** (columna G): el nombre del archivo que subiste, por ejemplo `cetro-amatista.jpg`.
+3. La pieza aparece sola en su categoría. Si no pones imagen, se muestra con el sello de la Q mientras tanto.
+
+Las piezas agregadas así se muestran con su foto, nombre, descripción y precio. Si quieres la ficha completa (dos fotos, minerales e intención, como las demás), pídeselo a Claude con la lámina del catálogo.

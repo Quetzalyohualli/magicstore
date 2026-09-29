@@ -50,6 +50,7 @@
   --dawn-bg:#1E231C; --dawn-bg-2:#262C23; --dawn-ink:#F4EFE5; --dawn-muted:#CBBFAB; --dawn-gold:#D9A58C; --dawn-line:rgba(214,200,181,.25); --dawn-glow:rgba(48,56,45,.35);
 }
 *,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
 html{scroll-behavior:smooth;scroll-padding-top:calc(env(safe-area-inset-top,0px) + 72px);background:var(--night)}
 body{margin:0;background:var(--night);color:var(--night-ink);font-family:var(--text);font-size:clamp(19px,1.05vw + 12px,22px);line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 img{max-width:100%;display:block}
@@ -224,6 +225,9 @@ a{color:inherit}
 .btn-ghost{background:transparent;color:var(--dawn-ink);border-color:var(--dawn-line)}
 .btn-ghost:hover,.btn-ghost:focus-visible{border-color:var(--dawn-ink);background:var(--dawn-ink);color:var(--dawn-bg);box-shadow:0 10px 24px rgba(48,56,45,.2)}
 .piece .price{margin:-8px 0 18px;font-family:var(--ui);font-weight:500;font-size:16px;letter-spacing:.04em;color:var(--dawn-ink)}
+.piece .price small{display:block;margin-top:3px;font-weight:400;font-size:14px;letter-spacing:.02em;color:var(--dawn-muted)}
+.piece .arch.ph{background:radial-gradient(circle at 50% 45%,rgba(201,164,92,.25),transparent 60%),linear-gradient(180deg,#30382D,#171C16)}
+.piece .arch.ph img{object-fit:contain;padding:28%;filter:drop-shadow(0 0 20px rgba(230,211,163,.35))}
 /* piezas agotadas */
 .piece.sold .arch img{filter:grayscale(.75) brightness(.72) contrast(.95)}
 .piece.sold .arch:hover img{transform:scale(1.03)}
@@ -373,6 +377,7 @@ dialog.sheet::backdrop{background:rgba(12,15,11,.74);backdrop-filter:blur(4px)}
 .gift{display:flex;align-items:center;gap:10px;margin:0 0 18px;font-family:var(--ui);font-size:15px;cursor:pointer}
 .gift input{width:20px;height:20px;accent-color:var(--clay)}
 .sheet-media img{width:100%;height:100%;object-fit:cover}
+.sheet-media img.ph{object-fit:contain;padding:22%;background:radial-gradient(circle at 50% 45%,rgba(201,164,92,.25),transparent 60%),linear-gradient(180deg,#30382D,#171C16)}
 .sheet-thumbs{position:absolute;left:14px;bottom:14px;display:flex;gap:8px}
 .sheet-thumbs button{width:60px;height:60px;box-shadow:0 4px 14px rgba(0,0,0,.35);border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,.4);padding:0;cursor:pointer;background:none}
 .sheet-thumbs button[aria-current="true"]{border-color:var(--gold)}
@@ -858,8 +863,14 @@ let INV={};   // código -> {estado, precio}
 const norm=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().toLowerCase();
 const invOf=p=>INV[norm(p.id)]||INV[norm(p.key)]||null;
 const isHidden=p=>{ const r=invOf(p); return !!r && /ocult|no mostrar|retirad|pausad/.test(norm(r.estado)); };
-const priceOf=p=>{ const r=invOf(p); if(!r||!String(r.precio).trim()) return "";
-  const n=Number(String(r.precio).replace(/[^0-9.]/g,"")); return n ? "$"+n.toLocaleString("es-MX",{maximumFractionDigits:2})+" MXN" : String(r.precio).trim(); };
+const money=n=>"$"+n.toLocaleString("es-MX",{maximumFractionDigits:2})+" MXN";
+const toNum=s=>{ const n=Number(String(s).replace(/[$,\s]|mxn/gi,"")); return isFinite(n)&&n>0?n:0; };
+/* "500" -> $500 MXN · "80/145" -> $80 MXN c/u y 2 piezas por $145 MXN */
+const priceParts=p=>{ const r=invOf(p); const raw=String(r&&r.precio||"").trim(); if(!raw) return null;
+  const pair=raw.split("/");
+  if(pair.length===2 && toNum(pair[0]) && toNum(pair[1])) return {main:money(toNum(pair[0]))+" c/u", extra:"2 piezas por "+money(toNum(pair[1])), multi:true};
+  const n=toNum(raw); return n ? {main:money(n), extra:"", multi:false} : {main:raw, extra:"", multi:false}; };
+const priceOf=p=>{ const q=priceParts(p); return q ? q.main+(q.extra?" · "+q.extra:"") : ""; };
 function parseCSV(t){ const rows=[]; let row=[],f="",q=false;
   for(let i=0;i<t.length;i++){ const c=t[i];
     if(q){ if(c==='"'){ if(t[i+1]==='"'){f+='"';i++;} else q=false; } else f+=c; }
@@ -869,11 +880,31 @@ function parseCSV(t){ const rows=[]; let row=[],f="",q=false;
   if(f||row.length){ row.push(f); rows.push(row); } return rows.filter(r=>r.some(x=>x.trim())); }
 function applyInventory(text){
   const rows=parseCSV(text); if(rows.length<2) return false;
-  const head=rows[0].map(norm), ci=head.findIndex(x=>x.startsWith("codigo")), ei=head.findIndex(x=>x.startsWith("estado")), pi=head.findIndex(x=>x.startsWith("precio"));
+  const head=rows[0].map(norm), col=k=>head.findIndex(x=>x.startsWith(k));
+  const ci=col("codigo"), ei=col("estado"), pi=col("precio"), ni=col("pieza"), ki=col("categoria"), di=col("descripcion"), ii=col("imagen");
   if(ci<0||ei<0) return false;
-  const next={}; rows.slice(1).forEach(r=>{ const c=norm(r[ci]); if(c) next[c]={estado:r[ei]||"",precio:pi>=0?(r[pi]||""):""}; });
-  const changed=JSON.stringify(next)!==JSON.stringify(INV); INV=next; return changed;
+  const next={}; rows.slice(1).forEach(r=>{ const raw=(r[ci]||"").trim(), c=norm(raw); if(c) next[c]={codigo:raw,estado:r[ei]||"",precio:pi>=0?(r[pi]||""):"",pieza:ni>=0?(r[ni]||""):"",categoria:ki>=0?(r[ki]||""):"",descripcion:di>=0?(r[di]||""):"",imagen:ii>=0?(r[ii]||""):""}; });
+  const changed=JSON.stringify(next)!==JSON.stringify(INV); INV=next; syncExtra(); return changed;
 }
+/* piezas nuevas que solo existen en la hoja: se crean con sus datos básicos */
+const esc=s=>String(s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+let EXTRA=[];
+function syncExtra(){
+  const known=new Set(PIECES.map(p=>norm(p.id)));
+  EXTRA=Object.entries(INV).filter(([c])=>!known.has(c)).map(([c,r])=>{
+    const parts=String(r.pieza||"").split("·").map(s=>s.trim()).filter(Boolean);
+    const kind=parts.length>1?parts[0]:"Pieza", name=parts.length>1?parts.slice(1).join(" · "):(parts[0]||r.codigo);
+    const catName=String(r.categoria||"").trim()||"Otras piezas";
+    let cat=CATS.find(k=>norm(k.name)===norm(catName)||k.key===norm(catName));
+    if(!cat){ cat={key:"x-"+norm(catName).replace(/[^a-z0-9]+/g,"-"),name:catName,desc:"Nuevas piezas elegidas por Cecy."}; CATS.push(cat); }
+    let src=String(r.imagen||"").trim(); if(src && !/^(https?:|data:|\/)/.test(src)) src=(src.includes("/")?"":"img/")+src;
+    const key="x-"+c.replace(/[^a-z0-9]+/g,"-");
+    IMG[key]=src||document.querySelector(".nav .brand img.q").src;
+    return {id:String(r.codigo).toUpperCase(), key, cat:cat.key, kind:esc(kind), name:esc(name), stones:"", lead:esc(r.descripcion), invite:"",
+            imgs:[[key,esc(name)]], ph:!src, list:[], quote:""};
+  });
+}
+const ALL=()=>PIECES.concat(EXTRA);
 let invLoadedAt=0;
 async function loadInventory(){
   const url=(CONFIG.inventarioURL||"").trim(); if(!url) return;
@@ -891,7 +922,8 @@ const isSold = p => { const r=invOf(p); if(r && /agotad|vendid|sin stock|no disp
   return (CONFIG.agotadas||[]).some(x=>norm(x)===norm(p.id)||norm(x)===p.key); };
 const msgSimilar = p => `Hola Cecy, vi que la pieza ${p.id} «${p.name}» ya está agotada. ¿Tienes alguna similar disponible?`;
 function floatFor(p){ return isSold(p) ? ["Pedir una similar","Agotada: "+p.name,wa(msgSimilar(p))] : ["Apartar "+p.name,"Pieza "+p.id,wa(msgPiece(p))]; }
-const msgPiece = (p,gift) => `Hola Cecy, me encantó la pieza ${p.id} «${p.name}» (${p.stones}). ¿Está disponible para apartarla?` + (gift ? " Es para regalo." : "");
+const _stones=p=>p.stones?` (${p.stones})`:"";
+const msgPiece = (p,gift) => `Hola Cecy, me encantó la pieza ${p.id} «${p.name}»${_stones(p)}. ¿Está disponible para apartarla?` + (gift ? " Es para regalo." : "");
 
 /* ---------- héroe: la foto se disuelve al bajar ---------- */
 (function(){
@@ -932,7 +964,7 @@ const spy=new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting){
 }}),{rootMargin:"-45% 0px -50% 0px"});
 function buildCatalog(update){
   catalog.innerHTML=""; catbar.innerHTML=""; navSub.innerHTML="";
-  const visible=PIECES.filter(p=>!isHidden(p)), avail=visible.filter(p=>!isSold(p)).length;
+  const visible=ALL().filter(p=>!isHidden(p)), avail=visible.filter(p=>!isSold(p)).length;
   document.getElementById("colIntro").textContent=`${visible.length} piezas elegidas una a una por Cecy${avail<visible.length?`, ${avail} disponibles hoy`:""}. Cada piedra es irrepetible, así que cada pieza también lo es. Cuando se va, no vuelve igual.`;
   let ci=0;
   CATS.forEach(c=>{
@@ -944,20 +976,20 @@ function buildCatalog(update){
     sec.innerHTML=`<header class="cat-head"><div class="orn" aria-hidden="true"><i></i></div><h3 id="h-${c.key}">${c.name}</h3><p>${c.desc}</p><span class="count">${ROMAN[ci++]} · ${label}</span></header><div class="grid${n===2?" two":""}"></div>`;
     const g=sec.querySelector(".grid");
     items.forEach((p,k)=>{
-      const sold=isSold(p), price=priceOf(p);
+      const sold=isSold(p), pp=priceParts(p);
       const el=document.createElement("article"); el.className="piece rv"+(sold?" sold":"")+((update||reduceMotion)?" in":""); el.dataset.id=p.key; el.style.transitionDelay=(k%3)*120+"ms";
       el.innerHTML=`
         <div class="frame"><span class="dot" aria-hidden="true"></span>
-          <button class="arch" type="button" aria-label="Ver la historia de ${p.name}">
+          <button class="arch${p.ph?" ph":""}" type="button" aria-label="Ver la historia de ${p.name}">
             <img src="${IMG[p.imgs[0][0]]}" alt="${p.imgs[0][1]}" loading="lazy" decoding="async">
             ${sold?`<span class="soldseal"><b>Agotada</b><small>Pieza única</small></span>`:""}
           </button>
         </div>
         <p class="kind">${p.kind} · ${p.id}</p>
         <h4>${p.name}</h4>
-        <p class="stones">${p.stones}</p>
-        <p class="inv">${p.invite}.</p>
-        ${price&&!sold?`<p class="price">${price}</p>`:""}
+        ${p.stones?`<p class="stones">${p.stones}</p>`:""}
+        ${p.invite?`<p class="inv">${p.invite}.</p>`:(p.lead?`<p class="stones">${p.lead}</p>`:"")}
+        ${pp&&!sold?`<p class="price">${pp.main}${pp.extra?`<small>${pp.extra}</small>`:""}</p>`:""}
         <div class="row">
           ${sold?`<a class="btn btn-ghost similar" href="${wa(msgSimilar(p))}" target="_blank" rel="noopener">Pedir una similar</a>`
                 :`<a class="btn btn-ink" href="${wa(msgPiece(p))}" target="_blank" rel="noopener">Apartar</a>`}
@@ -980,7 +1012,7 @@ function buildCatalog(update){
 const sheet=document.getElementById("sheet");
 function openSheet(p){
   const $=id=>document.getElementById(id);
-  const main=$("sheetImg"); main.src=IMG[p.imgs[0][0]]; main.alt=p.imgs[0][1];
+  const main=$("sheetImg"); main.src=IMG[p.imgs[0][0]]; main.alt=p.imgs[0][1]; main.classList.toggle("ph",!!p.ph);
   const th=$("sheetThumbs"); th.innerHTML="";
   if(p.imgs.length>1) p.imgs.forEach((im,i)=>{
     const b=document.createElement("button"); b.type="button"; b.setAttribute("aria-label","Ver foto "+(i+1));
@@ -991,13 +1023,13 @@ function openSheet(p){
   $("sheetKind").textContent=`${p.kind} · ${p.id}`;
   $("sheetTitle").textContent=p.name;
   $("sheetLead").textContent=p.lead;
-  $("sheetInvite").textContent=p.invite;
+  $("sheetInvite").textContent=p.invite||""; $("sheetInvite").hidden=!p.invite;
   $("sheetList").innerHTML=p.list.map(l=>`<div><dt>${l[0]}<i>${l[1]}</i></dt><dd>${l[2]}</dd></div>`).join("");
-  $("sheetQuote").textContent="“"+p.quote+"”";
+  $("sheetQuote").textContent=p.quote?"“"+p.quote+"”":""; $("sheetQuote").hidden=!p.quote;
   const c=$("sheetCta"), gb=$("giftBox"), sold=isSold(p); gb.checked=false;
   gb.parentElement.hidden=sold; $("sheetSold").hidden=!sold;
-  const pr=priceOf(p);
-  $("sheetFine").textContent= sold ? "Esta pieza ya encontró su hogar. Escríbeme y te muestro las que tengo disponibles." : (pr ? `${pr} · Pieza única. Te confirmo disponibilidad personalmente.` : "Pieza única. Te confirmo disponibilidad y precio personalmente.");
+  const pr=priceOf(p), pq=priceParts(p);
+  $("sheetFine").textContent= sold ? "Esta pieza ya encontró su hogar. Escríbeme y te muestro las que tengo disponibles." : (pr ? `${pr}. ${pq.multi?"Te confirmo existencias personalmente.":"Pieza única. Te confirmo disponibilidad personalmente."}` : "Pieza única. Te confirmo disponibilidad y precio personalmente.");
   if(sold){ c.href=wa(msgSimilar(p)); c.textContent="Pedir una pieza similar"; gb.onchange=null; }
   else { c.href=wa(msgPiece(p)); c.textContent="Apartar por WhatsApp"; gb.onchange=()=>{ c.href=wa(msgPiece(p,gb.checked)); }; }
   setFloat(...floatFor(p));
@@ -1019,7 +1051,7 @@ document.getElementById("inviteCta").href=wa(MSG_GENERAL);
 document.getElementById("sesAsk").href=wa("Hola Cecy, me interesa una sesión privada de Tarot Tolteca y tengo una pregunta antes de agendar.");
 document.getElementById("helpCta").href=wa("Hola Cecy, busco una pieza para mí o para regalar y no sé cuál elegir. ¿Me ayudas?");
 const pieceObs=new IntersectionObserver(es=>{
-  es.forEach(e=>{ if(e.isIntersecting){ const p=PIECES.find(x=>x.key===e.target.dataset.id); setFloat(...floatFor(p)); }});
+  es.forEach(e=>{ if(e.isIntersecting){ const p=ALL().find(x=>x.key===e.target.dataset.id); if(p) setFloat(...floatFor(p)); }});
 },{rootMargin:"-40% 0px -40% 0px",threshold:0});
 buildCatalog(false);
 loadInventory();
