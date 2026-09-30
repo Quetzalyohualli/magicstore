@@ -671,7 +671,8 @@ dialog.sheet::backdrop{background:rgba(12,15,11,.74);backdrop-filter:blur(4px)}
 const CONFIG = {
   zcal: "https://zcal.co/quetzalyohualli/cecy",   // enlace para agendar sesiones de Tarot Tolteca
   whatsapp: "522292076258",             // número con lada internacional, sin espacios ni signos. Ej. 5214431234567
-  inventarioURL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZQFQJzJ04z3CCWvNtS4VETMeqdU5mcnA3hSPSKtJdqujkbZdHMa6Pym97Ai9THqzdiLptAQQmXSB6/pub?output=csv",                     // enlace CSV de la hoja de inventario publicada en Google Sheets (ver LEEME)
+  inventarioURL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZQFQJzJ04z3CCWvNtS4VETMeqdU5mcnA3hSPSKtJdqujkbZdHMa6Pym97Ai9THqzdiLptAQQmXSB6/pub?output=csv",
+  inventarioRespaldo: "inventario.csv",                // inventario.csv del sitio: completa precios o piezas que falten en la hoja                     // enlace CSV de la hoja de inventario publicada en Google Sheets (ver LEEME)
   agotadas: [],                          // piezas vendidas: escribe su código entre comillas, ej. ["Q-02","RC-01"]. Ej. corazones de aventurina = "AV-01", rodado de aventurina = "AV-02"
   redes: [
     { red: "Instagram", url: "https://www.instagram.com/quetzalyohualli", handle: "@quetzalyohualli" }
@@ -970,14 +971,26 @@ function parseCSV(t){ const rows=[]; let row=[],f="",q=false;
     else if(c==='\n'||c==='\r'){ if(c==='\r'&&t[i+1]==='\n') i++; row.push(f); rows.push(row); row=[]; f=""; }
     else f+=c; }
   if(f||row.length){ row.push(f); rows.push(row); } return rows.filter(r=>r.some(x=>x.trim())); }
-function applyInventory(text){
-  const rows=parseCSV(text); if(rows.length<2) return false;
+function parseInv(text){
+  const rows=parseCSV(String(text||"").replace(/^\ufeff/,"")); if(rows.length<2) return null;
   const head=rows[0].map(norm), col=k=>head.findIndex(x=>x.startsWith(k));
   const ci=col("codigo"), ei=col("estado"), pi=col("precio"), ni=col("pieza"), ki=col("categoria"), di=col("descripcion"), ii=col("imagen");
-  if(ci<0||ei<0) return false;
-  const next={}; rows.slice(1).forEach(r=>{ const raw=(r[ci]||"").trim(), c=norm(raw); if(c) next[c]={codigo:raw,estado:r[ei]||"",precio:pi>=0?(r[pi]||""):"",pieza:ni>=0?(r[ni]||""):"",categoria:ki>=0?(r[ki]||""):"",descripcion:di>=0?(r[di]||""):"",imagen:ii>=0?(r[ii]||""):""}; });
+  if(ci<0||ei<0) return null;
+  const m={}; rows.slice(1).forEach(r=>{ const raw=(r[ci]||"").trim(), c=norm(raw); if(c) m[c]={codigo:raw,estado:r[ei]||"",precio:pi>=0?(r[pi]||""):"",pieza:ni>=0?(r[ni]||""):"",categoria:ki>=0?(r[ki]||""):"",descripcion:di>=0?(r[di]||""):"",imagen:ii>=0?(r[ii]||""):""}; });
+  return m;
+}
+/* la hoja de Google manda; el inventario.csv del sitio solo completa lo que falte (filas o precios vacíos) */
+let INV_BASE=null, INV_MAIN=null;
+function mergeInv(){
+  const next={}, base=INV_BASE||{}, main=INV_MAIN||{};
+  Object.keys(base).forEach(c=>{ next[c]={...base[c]}; });
+  Object.keys(main).forEach(c=>{ const b=base[c]||{}, r={...main[c]};
+    if(!String(r.precio).trim() && b.precio) r.precio=b.precio;
+    if(!String(r.estado).trim() && b.estado) r.estado=b.estado;
+    next[c]=r; });
   const changed=JSON.stringify(next)!==JSON.stringify(INV); INV=next; syncExtra(); return changed;
 }
+function applyInventory(text){ const m=parseInv(text); if(!m) return false; INV_MAIN=m; return mergeInv(); }
 /* piezas nuevas que solo existen en la hoja: se crean con sus datos básicos */
 const esc=s=>String(s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 let EXTRA=[];
@@ -998,14 +1011,17 @@ function syncExtra(){
 }
 const ALL=()=>PIECES.concat(EXTRA);
 let invLoadedAt=0;
+async function fetchText(u){
+  const res=await fetch(u+(u.includes("?")?"&":"?")+"t="+Date.now(),{cache:"no-store"}); if(!res.ok) throw new Error(res.status); return res.text();
+}
 async function loadInventory(){
-  const url=(CONFIG.inventarioURL||"").trim(); if(!url) return;
-  try{
-    const res=await fetch(url+(url.includes("?")?"&":"?")+"t="+Date.now(),{cache:"no-store"});
-    if(!res.ok) return; const txt=await res.text(); invLoadedAt=Date.now();
-    try{ localStorage.setItem("qz-inventario",txt); }catch(e){}
-    if(applyInventory(txt)) buildCatalog(true);
-  }catch(e){ /* sin conexión al inventario: la página sigue con lo último conocido */ }
+  const url=(CONFIG.inventarioURL||"").trim(), base=(CONFIG.inventarioRespaldo||"").trim();
+  if(!url && !base) return;
+  const [a,b]=await Promise.allSettled([base&&base!==url?fetchText(base):Promise.reject(), url?fetchText(url):Promise.reject()]);
+  let changed=false;
+  if(a.status==="fulfilled"){ const m=parseInv(a.value); if(m){ INV_BASE=m; changed=mergeInv()||changed; } }
+  if(b.status==="fulfilled"){ invLoadedAt=Date.now(); try{ localStorage.setItem("qz-inventario",b.value); }catch(e){} changed=applyInventory(b.value)||changed; }
+  if(changed) buildCatalog(true);
 }
 try{ const c=localStorage.getItem("qz-inventario"); if(c && (CONFIG.inventarioURL||"").trim()) applyInventory(c); }catch(e){}
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible" && Date.now()-invLoadedAt>10*60*1000) loadInventory(); });

@@ -1,10 +1,10 @@
-codigo,pieza,categoria,estado,precio
+﻿codigo,pieza,categoria,estado,precio
 Q-01,Pulsera · Azul que guarda historias,Pulseras,Disponible,500
-Q-02,Pulsera · Suavidad que te acompaña,Pulseras,Disponible,
-Q-03,Pulsera · La belleza del matiz,Pulseras,Disponible,
-Q-04,Pulsera · Todos tus colores,Pulseras,Disponible,
-Q-05,Pulsera · Un pequeño universo,Pulseras,Disponible,
-EM-01,Pulsera · Esmeraldas facetadas,Pulseras,Disponible,
+Q-02,Pulsera · Suavidad que te acompaña,Pulseras,Disponible,550
+Q-03,Pulsera · La belleza del matiz,Pulseras,Disponible,720
+Q-04,Pulsera · Todos tus colores,Pulseras,Disponible,400
+Q-05,Pulsera · Un pequeño universo,Pulseras,Disponible,580
+EM-01,Pulsera · Esmeraldas facetadas,Pulseras,Disponible,400
 A-01,Anillo · Luz que te centra,Anillos y dijes,Disponible,2850
 TI-01,Dije · Topacio Imperial,Anillos y dijes,Disponible,1600
 AT-01,Cetro · Ametrino,"Torres, puntas y cetros",Disponible,2500
