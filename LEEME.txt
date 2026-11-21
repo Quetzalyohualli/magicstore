@@ -1,0 +1,37 @@
+QUETZALYOHUALLI - PAGINA WEB (VERSION ACTUAL)
+=============================================
+
+Esta carpeta es una copia EXACTA de lo que esta publicado en GitHub
+(repositorio "magicstore"), con todas las piezas y sus fotos.
+
+Direccion de la pagina: https://quetzalyohualli.github.io/magicstore/
+
+QUE HAY AQUI
+- index.html ............ la pagina.
+- img\ .................. todas las fotos que usa la pagina.
+- inventario.csv ........ el inventario que lee la pagina (codigo, pieza,
+                          categoria, estado, precio). Es el que se sube a GitHub.
+- inventario (para consultar en Excel).xlsx
+                          el mismo inventario, para verlo con acentos correctos.
+                          La pagina NO lee este archivo.
+- favicon*, icon*, apple-touch-icon.png, site.webmanifest
+                          el logo de la pestana del navegador.
+
+PARA VER LA PAGINA
+- Abre siempre la direccion de internet de arriba.
+- Si no ves un cambio reciente: Ctrl + F5 (o una ventana de incognito).
+  GitHub tarda unos minutos en publicar cada actualizacion.
+
+PARA ACTUALIZAR LA PAGINA EN GITHUB
+1. Entra a github.com/quetzalyohualli/magicstore
+2. Add file > Upload files.
+3. Arrastra TODO el contenido de esta carpeta (los archivos y la carpeta img)
+   y presiona "Commit changes".
+4. Espera 2 a 5 minutos y recarga con Ctrl + F5.
+
+PARA MARCAR UNA PIEZA COMO AGOTADA O CAMBIAR UN PRECIO
+- Cambia la hoja "inventario" en Google Sheets (columna estado: Disponible,
+  Agotada u Oculta). La pagina la lee sola; Google tarda unos 5 minutos.
+- inventario.csv es el respaldo: si la hoja de Google no carga o le falta una
+  pieza, la pagina usa este archivo.
+- Precios dobles: 80/145 significa $80 c/u y 2 piezas por $145.
